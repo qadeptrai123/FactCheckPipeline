@@ -1,0 +1,4 @@
+.pytest_cache
+clean_claim_project/
+FinalDataset/
+models/
