@@ -1,44 +1,59 @@
-"""Fixed-size token-based chunking using tiktoken sliding window.
+"""Fixed-size token-based chunking using LangChain CharacterTextSplitter + tiktoken.
 
-No embedder — token windowing is purely structural, no semantic decisions needed.
+Follows the token-splitting approach from:
+https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
+
+Uses CharacterTextSplitter.from_tiktoken_encoder to count by **tokens**
+(not characters), producing consistent token-sized chunks with overlap.
+
+Blog reference (LangChain – Token Splitting using Tiktoken):
+    >>> from langchain_text_splitters import CharacterTextSplitter
+    >>> text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
+    ...     chunk_size=100, chunk_overlap=0)
+    >>> texts = text_splitter.split_text(state_of_the_union)
 """
 
 from typing import Any, Dict, List
 
-import tiktoken
+from langchain_text_splitters import CharacterTextSplitter
 
 from src.domain.chunk import Chunk
 
 
 class FixedSizeChunkingStrategy:
+    """Fixed-size chunking: LangChain CharacterTextSplitter + tiktoken encoder.
+
+    Token-based splitting: chunk_size and overlap are measured in **tokens**,
+    not characters, ensuring consistent chunk sizes for downstream LLM processing.
+
+    Attributes:
+        chunk_size: Maximum number of tokens per chunk (default 256).
+        overlap:    Number of overlapping tokens between consecutive chunks (default 40).
+    """
+
     def __init__(self, chunk_size: int = 256, overlap: int = 40):
         self.chunk_size = chunk_size
         self.overlap = overlap
-        self.enc = tiktoken.get_encoding("cl100k_base")
+        self.splitter = CharacterTextSplitter.from_tiktoken_encoder(
+            encoding_name="cl100k_base",
+            chunk_size=chunk_size,
+            chunk_overlap=overlap,
+        )
 
     def chunk(self, text: str, metadata: Dict[str, Any]) -> List[Chunk]:
         """Full chunk — no embedding needed for fixed-size strategy."""
         return self.chunk_no_embed(text, metadata)
 
     def chunk_no_embed(self, text: str, metadata: Dict[str, Any]) -> List[Chunk]:
-        """Slide a token window over the text — no embedding."""
-        tokens = self.enc.encode(text)
-        if not tokens:
+        """Split text into fixed-size token chunks using LangChain — no embedding."""
+        if not text or not text.strip():
             return []
 
-        step = self.chunk_size - self.overlap
-        raw_chunks: List[str] = []
-        idx = 0
+        texts = self.splitter.split_text(text)
+        if not texts:
+            return []
+
         id_prefix = metadata.get("_id_prefix", "row")
-
-        while idx < len(tokens):
-            window_tokens = tokens[idx : idx + self.chunk_size]
-            chunk_text = self.enc.decode(window_tokens)
-            raw_chunks.append(chunk_text)
-
-            if idx + self.chunk_size >= len(tokens):
-                break
-            idx += step
 
         return [
             Chunk(
@@ -49,5 +64,5 @@ class FixedSizeChunkingStrategy:
                 modality="text",
                 metadata={**metadata},
             )
-            for i, t in enumerate(raw_chunks)
+            for i, t in enumerate(texts)
         ]

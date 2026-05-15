@@ -1,11 +1,25 @@
-"""LangChain + bkai-foundation-models/vietnamese-bi-encoder semantic chunking."""
-import re
+"""Semantic chunking using LangChain SemanticChunker + HuggingFace embeddings.
+
+Follows the semantic splitting approach from:
+https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
+
+Blog reference (LangChain – Semantic Splitting):
+    >>> from langchain_experimental.text_splitter import SemanticChunker
+    >>> from langchain_openai.embeddings import OpenAIEmbeddings
+    >>> text_splitter = SemanticChunker(OpenAIEmbeddings())
+    >>> docs = text_splitter.create_documents([state_of_the_union])
+
+This implementation uses bkai-foundation-models/vietnamese-bi-encoder
+(HuggingFaceEmbeddings) instead of OpenAIEmbeddings so it works offline
+and is tuned for Vietnamese text.
+"""
+
 from typing import Any, Dict, List
 
+from langchain_experimental.text_splitter import SemanticChunker
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from src.domain.chunk import Chunk
-from src.chunking.section import LangChainParagraphStrategy
 
 # ── Global embedder cache ─────────────────────────────────────────────────────
 _EMBEDDER: HuggingFaceEmbeddings | None = None
@@ -14,108 +28,56 @@ _EMBEDDER: HuggingFaceEmbeddings | None = None
 def _get_embedder(
     model: str = "bkai-foundation-models/vietnamese-bi-encoder",
 ) -> HuggingFaceEmbeddings:
+    """Return a cached HuggingFaceEmbeddings instance (loaded once)."""
     global _EMBEDDER
     if _EMBEDDER is None:
         _EMBEDDER = HuggingFaceEmbeddings(model_name=model)
     return _EMBEDDER
 
 
-# ── Sentence splitting ─────────────────────────────────────────────────────────
-# Multilingual: ASCII (.!?) and CJK full-width (。？！) sentence terminators
-_SENT_SPLIT_RE = re.compile(
-    r"(?<=[.!?])\s+|(?<=[。？！])\s+",
-    re.UNICODE,
-)
-
-
-def _split_sentences(text: str) -> List[str]:
-    """Split text into sentences using multilingual sentence-boundary regex.
-
-    Covers ASCII (.!?) and CJK full-width (。？！) punctuation followed by
-    whitespace.  Returns empty list for empty/whitespace-only input.
-    """
-    if not text.strip():
-        return []
-    raw = _SENT_SPLIT_RE.split(text)
-    return [s.strip() for s in raw if s.strip()]
-
-
-# ── Semantic boundary detection ───────────────────────────────────────────────
-
-
-def _cosine_sim(a: List[float], b: List[float]) -> float:
-    """Cosine similarity between two equal-length embedding vectors."""
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x * x for x in a) ** 0.5
-    norm_b = sum(y * y for y in b) ** 0.5
-    return dot / (norm_a * norm_b + 1e-9)
-
-
-def _find_semantic_boundaries(
-    sentences: List[str],
-    threshold: float,
-    embedder: HuggingFaceEmbeddings,
-) -> List[int]:
-    """Return start indices of each semantically coherent chunk.
-
-    Algorithm (one inference pass per row):
-      1. Batch-embed all sentences with bkai-foundation-models/vietnamese-bi-encoder.
-      2. Compare each consecutive pair (sᵢ, sᵢ₊₁) by cosine similarity.
-      3. If sim < threshold → boundary after sᵢ.
-
-    Returns:
-        Sorted list of chunk start indices, e.g. [0, 3, 7] means:
-        chunk 0 = sentences[0..2], chunk 1 = sentences[3..6], chunk 2 = sentences[7:].
-    """
-    if len(sentences) <= 2:
-        return [0]
-
-    # Batch-embed all sentences (single inference call per row)
-    embs: List[List[float]] = embedder.embed_documents(sentences)
-
-    boundaries = [0]
-    for i in range(len(sentences) - 1):
-        sim = _cosine_sim(embs[i], embs[i + 1])
-        if sim < threshold:
-            boundaries.append(i + 1)
-
-    return boundaries
-
-
 # ── Main strategy class ────────────────────────────────────────────────────────
 
 
 class SemanticChunkingStrategy:
-    """Semantic chunking: LangChain + bkai Vietnamese embedder.
+    """Semantic chunking: LangChain SemanticChunker + bkai Vietnamese embedder.
 
-    Strategy:
-      1. Split text into sentences (multilingual regex via ``re.split``).
-      2. Batch-embed all sentences with bkai-foundation-models/vietnamese-bi-encoder.
-      3. Detect boundaries between consecutive sentence pairs whose cosine
-         similarity falls below ``threshold``.
-      4. Fall back to LangChainParagraphStrategy for texts with ≤2 sentences.
+    Strategy (handled internally by SemanticChunker):
+      1. Split text into sentences.
+      2. Embed every sentence with bkai-foundation-models/vietnamese-bi-encoder.
+      3. Compute distances between consecutive sentence embeddings.
+      4. Detect breakpoints where distance exceeds a threshold:
+         - "percentile":          top-N% largest distance drops → new chunk
+         - "standard_deviation":  distance > N standard deviations
+         - "interquartile":       distance beyond IQR
+         - "gradient":            gradient-based change detection
 
     Attributes:
-        threshold: Cosine-similarity threshold; below this between consecutive
-                  sentences → new chunk boundary.  Default 0.55.
+        breakpoint_threshold_amount: Sensitivity parameter for the chosen method.
+            For "percentile" mode, this is the percentile value (0–100).
+            Higher value → fewer, larger chunks.  Default 85.
+        breakpoint_threshold_type: One of "percentile", "standard_deviation",
+            "interquartile", "gradient".  Default "percentile".
         embedder_model: HuggingFace model name for HuggingFaceEmbeddings.
-                        Default: bkai-foundation-models/vietnamese-bi-encoder (768d).
-        fallback_chunk_size: Character budget for paragraph fallback (≤2 sentences).
-        fallback_overlap:   Character overlap for paragraph fallback.
+            Default: bkai-foundation-models/vietnamese-bi-encoder (768d).
     """
 
     def __init__(
         self,
-        threshold: float = 0.55,
+        threshold: float = 85,
+        breakpoint_threshold_type: str = "percentile",
         embedder_model: str = "bkai-foundation-models/vietnamese-bi-encoder",
-        fallback_chunk_size: int = 400,
-        fallback_overlap: int = 40,
     ):
         self.threshold = threshold
+        self.breakpoint_threshold_type = breakpoint_threshold_type
         self.embedder_model = embedder_model
-        self._fallback = LangChainParagraphStrategy(
-            chunk_size=fallback_chunk_size,
-            chunk_overlap=fallback_overlap,
+
+    def _build_chunker(self) -> SemanticChunker:
+        """Build a SemanticChunker instance with cached embedder."""
+        embedder = _get_embedder(self.embedder_model)
+        return SemanticChunker(
+            embeddings=embedder,
+            breakpoint_threshold_type=self.breakpoint_threshold_type,
+            breakpoint_threshold_amount=self.threshold,
         )
 
     def chunk(self, text: str, metadata: Dict[str, Any]) -> List[Chunk]:
@@ -123,50 +85,39 @@ class SemanticChunkingStrategy:
         chunks = self.chunk_no_embed(text, metadata)
         if not chunks:
             return []
-        embs = self._embed_batch([c.text for c in chunks])
+        embedder = _get_embedder(self.embedder_model)
+        embs = embedder.embed_documents([c.text for c in chunks])
         for c, emb in zip(chunks, embs):
             c.embedding = emb
         return chunks
 
     def chunk_no_embed(self, text: str, metadata: Dict[str, Any]) -> List[Chunk]:
-        """Split into semantically coherent chunks — no embedding (for batch)."""
-        sentences = _split_sentences(text)
-        n = len(sentences)
+        """Split into semantically coherent chunks — no embedding output."""
+        if not text or not text.strip():
+            return []
 
-        if n <= 2:
-            return self._fallback.chunk_no_embed(text, metadata)
+        chunker = self._build_chunker()
+
+        try:
+            texts = chunker.split_text(text)
+        except Exception:
+            # Fallback: if semantic chunking fails (e.g., very short text
+            # with < 2 sentences), return the entire text as a single chunk
+            texts = [text.strip()]
+
+        if not texts:
+            return []
 
         id_prefix = metadata.get("_id_prefix", "row")
-        embedder = _get_embedder(self.embedder_model)
-        embs: List[List[float]] = embedder.embed_documents(sentences)
-        boundaries = _find_semantic_boundaries(sentences, self.threshold, embedder)
 
-        if boundaries[-1] != n:
-            boundaries.append(n)
-
-        chunks: List[Chunk] = []
-        for chunk_idx, start in enumerate(boundaries[:-1]):
-            end = boundaries[chunk_idx + 1]
-            chunk_text = " ".join(sentences[start:end])
-            chunk_emb: List[float]
-            if end - start == 1:
-                chunk_emb = embs[start]
-            else:
-                chunk_emb = [sum(v) / len(v) for v in zip(*embs[start:end])]
-
-            chunks.append(
-                Chunk(
-                    chunk_id=f"{id_prefix}_text_{chunk_idx}",
-                    text=chunk_text,
-                    row_id=metadata.get("row_id", 0),
-                    chunk_index=chunk_idx,
-                    modality="text",
-                    metadata={**metadata},
-                    embedding=chunk_emb,
-                )
+        return [
+            Chunk(
+                chunk_id=f"{id_prefix}_text_{i}",
+                text=t,
+                row_id=metadata.get("row_id", 0),
+                chunk_index=i,
+                modality="text",
+                metadata={**metadata},
             )
-        return chunks
-
-    def _embed_batch(self, texts: List[str]) -> List[List[float]]:
-        """Batch-embed arbitrary text list in one inference pass."""
-        return _get_embedder(self.embedder_model).embed_documents(texts)
+            for i, t in enumerate(texts)
+        ]
