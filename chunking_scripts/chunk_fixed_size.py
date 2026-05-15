@@ -1,5 +1,9 @@
 """
-Chunk corpus text/images using Fixed-Size strategy and write CSV output.
+Chunk corpus text using Fixed-Size (token-based) strategy and write CSV output.
+
+Uses LangChain's CharacterTextSplitter.from_tiktoken_encoder for consistent
+token-based chunking, following the approach from:
+https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
 
 Usage:
     python chunk_fixed_size.py              # full corpus
@@ -9,7 +13,7 @@ Usage:
 Output CSV columns:
     chunk_id, modality, row_id, chunk_index,
     text, image_path, text_chunk_id,
-    source, url, title, author, date, content
+    source, url, title, author, date, corpus_id
 """
 import argparse
 import sys
@@ -25,7 +29,6 @@ from tqdm import tqdm
 from src.domain.chunk import Chunk
 from src.domain.corpus_row import CorpusRow
 from src.chunking.fixed_size import FixedSizeChunkingStrategy
-from src.paths import resolve_media_path
 
 CORPUS_PATH = Path("D:/RAG-DB/FinalDataset/final_corpus.csv")
 DEFAULT_OUTPUT = Path("D:/RAG-DB/chunking_scripts/chunks_fixed_size.csv")
@@ -98,26 +101,7 @@ def run(strategy_name: str, chunk_size: int, overlap: int,
             }
 
             text_chunks = strategy.chunk_no_embed(row.content, metadata)
-            text_start = len(all_chunks)
             all_chunks.extend(text_chunks)
-
-            first_text_id = text_chunks[0].chunk_id if text_chunks else None
-            # for img_idx, img_path_str in enumerate(row.media_paths):
-            #     resolved = resolve_media_path(img_path_str)
-            #     if resolved is None:
-            #         errors.append(f"row_{row.id}: media not found: {img_path_str}")
-            #         continue
-            #     img_chunk = Chunk(
-            #         chunk_id=f"row_{row.id}_img_{img_idx}",
-            #         text=None,
-            #         image_path=str(resolved),
-            #         row_id=row.id,
-            #         chunk_index=img_idx,
-            #         modality="image",
-            #         text_chunk_id=first_text_id,
-            #         metadata=metadata,
-            #     )
-            #     all_chunks.append(img_chunk)
 
         except Exception as e:
             errors.append(f"row_{row.id}: {e}")

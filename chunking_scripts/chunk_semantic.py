@@ -1,10 +1,14 @@
 """
-Chunk corpus text/images using Semantic strategy and write CSV output.
+Chunk corpus text using Semantic strategy and write CSV output.
+
+Uses LangChain's SemanticChunker with bkai-foundation-models/vietnamese-bi-encoder
+for dynamic semantic splitting, following the approach from:
+https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
 
 Usage:
     python chunk_semantic.py
     python chunk_semantic.py --sample 20
-    python chunk_semantic.py --threshold 0.60
+    python chunk_semantic.py --threshold 90
 
 Output CSV columns:
     chunk_id, modality, row_id, chunk_index,
@@ -24,7 +28,6 @@ from tqdm import tqdm
 from src.domain.chunk import Chunk
 from src.domain.corpus_row import CorpusRow
 from src.chunking.semantic import SemanticChunkingStrategy
-from src.paths import resolve_media_path
 
 CORPUS_PATH = Path("D:/RAG-DB/FinalDataset/final_corpus.csv")
 DEFAULT_OUTPUT = Path("D:/RAG-DB/chunking_scripts/chunks_semantic.csv")
@@ -64,8 +67,12 @@ def chunk_to_csv(chunks: List[Chunk], output_path: Path):
 
 
 def run(strategy_name: str, threshold: float,
+        breakpoint_type: str,
         output_path: Path, sample: int = None):
-    strategy = SemanticChunkingStrategy(threshold=threshold)
+    strategy = SemanticChunkingStrategy(
+        threshold=threshold,
+        breakpoint_threshold_type=breakpoint_type,
+    )
 
     all_chunks: List[Chunk] = []
     errors: List[str] = []
@@ -97,24 +104,6 @@ def run(strategy_name: str, threshold: float,
             text_chunks = strategy.chunk_no_embed(row.content, metadata)
             all_chunks.extend(text_chunks)
 
-            first_text_id = text_chunks[0].chunk_id if text_chunks else None
-            # for img_idx, img_path_str in enumerate(row.media_paths):
-            #     resolved = resolve_media_path(img_path_str)
-            #     if resolved is None:
-            #         errors.append(f"row_{row.id}: media not found: {img_path_str}")
-            #         continue
-            #     img_chunk = Chunk(
-            #         chunk_id=f"row_{row.id}_img_{img_idx}",
-            #         text=None,
-            #         image_path=str(resolved),
-            #         row_id=row.id,
-            #         chunk_index=img_idx,
-            #         modality="image",
-            #         text_chunk_id=first_text_id,
-            #         metadata=metadata,
-            #     )
-            #     all_chunks.append(img_chunk)
-
         except Exception as e:
             errors.append(f"row_{row.id}: {e}")
 
@@ -141,8 +130,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chunk corpus with Semantic strategy")
     parser.add_argument("--sample", type=int, default=None,
                         help="Process only first N rows (for testing)")
-    parser.add_argument("--threshold", type=float, default=0.55,
-                        help="Cosine sim threshold; below this = new chunk (default: 0.55)")
+    parser.add_argument("--threshold", type=float, default=85,
+                        help="Breakpoint threshold amount (default: 85 for percentile mode)")
+    parser.add_argument("--breakpoint-type", type=str, default="percentile",
+                        choices=["percentile", "standard_deviation",
+                                 "interquartile", "gradient"],
+                        help="Breakpoint detection method (default: percentile)")
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT),
                         help=f"Output CSV path (default: {DEFAULT_OUTPUT})")
     args = parser.parse_args()
@@ -150,6 +143,7 @@ if __name__ == "__main__":
     run(
         strategy_name="semantic",
         threshold=args.threshold,
+        breakpoint_type=args.breakpoint_type,
         output_path=Path(args.output),
         sample=args.sample,
     )
