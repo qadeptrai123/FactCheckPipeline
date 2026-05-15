@@ -1,0 +1,285 @@
+{
+  "single_inference": {
+    "input": {
+      "claim": "Công an tỉnh Thái Bình đã khởi tố 10 đối tượng trong đường dây lừa đảo hỗ trợ vay vốn online.",
+      "image_path": "media/post_1_cmt_img_0.jpg"
+    },
+    "preprocessing": {
+      "status": "success",
+      "duration_seconds": 3.42,
+      "image_analysis": {
+        "has_image": true,
+        "description": [
+          "Hình ảnh cho thấy một nhóm người đang đứng trong một phòng họp",
+          "Có biểu ngữ Công an tỉnh Thái Bình",
+          "Trên bàn có nhiều tang vật gồm điện thoại, máy tính",
+          "Có khoảng 10 người bị còng tay đứng phía trước",
+          "Phía sau có các cán bộ công an mặc sắc phục"
+        ]
+      },
+      "fact_extraction": {
+        "atomic_facts": [
+          "Cơ quan thực hiện: Công an tỉnh Thái Bình.",
+          "Hành động pháp lý: Khởi tố.",
+          "Số lượng đối tượng bị khởi tố: 10 người.",
+          "Loại tội phạm: Lừa đảo chiếm đoạt tài sản.",
+          "Phương thức hoạt động: Hỗ trợ vay vốn online."
+        ]
+      },
+      "json_output": {
+        "claim": "Công an tỉnh Thái Bình đã khởi tố 10 đối tượng trong đường dây lừa đảo hỗ trợ vay vốn online.",
+        "image_provided": true,
+        "image_facts": [
+          "Hình ảnh cho thấy một nhóm người đang đứng trong một phòng họp",
+          "Có biểu ngữ Công an tỉnh Thái Bình",
+          "Trên bàn có nhiều tang vật gồm điện thoại, máy tính",
+          "Có khoảng 10 người bị còng tay đứng phía trước",
+          "Phía sau có các cán bộ công an mặc sắc phục"
+        ],
+        "text_facts": [
+          "Cơ quan thực hiện: Công an tỉnh Thái Bình.",
+          "Hành động pháp lý: Khởi tố.",
+          "Số lượng đối tượng bị khởi tố: 10 người.",
+          "Loại tội phạm: Lừa đảo chiếm đoạt tài sản.",
+          "Phương thức hoạt động: Hỗ trợ vay vốn online."
+        ],
+        "normalized_facts": [
+          "Hình ảnh cho thấy một nhóm người đang đứng trong một phòng họp",
+          "Có biểu ngữ Công an tỉnh Thái Bình",
+          "Trên bàn có nhiều tang vật gồm điện thoại, máy tính",
+          "Có khoảng 10 người bị còng tay đứng phía trước",
+          "Phía sau có các cán bộ công an mặc sắc phục",
+          "Cơ quan thực hiện: Công an tỉnh Thái Bình.",
+          "Hành động pháp lý: Khởi tố.",
+          "Số lượng đối tượng bị khởi tố: 10 người.",
+          "Loại tội phạm: Lừa đảo chiếm đoạt tài sản.",
+          "Phương thức hoạt động: Hỗ trợ vay vốn online."
+        ],
+        "alignment": [
+          "Khớp hoàn toàn",
+          "Hình ảnh cho thấy cảnh Công an tỉnh Thái Bình khởi tố đối tượng, phù hợp với nội dung claim."
+        ],
+        "rag_queries": [
+          "Công an Thái Bình khởi tố lừa đảo",
+          "đường dây vay vốn online lừa đảo",
+          "khởi tố 10 đối tượng lừa đảo"
+        ],
+        "hyde_doc": [
+          "Ngày 15/3/2024, Công an tỉnh Thái Bình cho biết đã ra quyết định khởi tố vụ án, khởi tố bị can đối với 10 đối tượng trong đường dây lừa đảo chiếm đoạt tài sản thông qua hình thức hỗ trợ vay vốn online. Các đối tượng đã dùng mạng xã hội để quảng cáo dịch vụ cho vay với lãi suất thấp...",
+          "BÁO CÁO NỘI BỘ - Phòng Cảnh sát Hình sự, Công an tỉnh Thái Bình: Kết quả điều tra chuyên án TĐ-2024 về việc triệt phá đường dây lừa đảo qua hình thức hỗ trợ vay vốn trực tuyến. Đã khởi tố 10 bị can, thu giữ 15 điện thoại, 5 máy tính xách tay..."
+        ]
+      }
+    },
+    "retrieval": {
+      "status": "success",
+      "duration_seconds": 1.87,
+      "strategy": "fixed_size",
+      "top_k": 5,
+      "results": [
+        {
+          "rank": 1,
+          "score": 0.9234,
+          "chunk_id": "art_045_002",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình",
+          "text": "Công an tỉnh Thái Bình vừa triệt phá thành công đường dây lừa đảo chiếm đoạt tài sản qua hình thức hỗ trợ vay vốn trực tuyến, khởi tố 10 đối tượng...",
+          "source": "tuoitre.vn",
+          "date": "2024-03-15",
+          "modality": "text"
+        },
+        {
+          "rank": 2,
+          "score": 0.8912,
+          "chunk_id": "art_045_003",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình",
+          "text": "Theo điều tra, các đối tượng lập nhiều trang web giả mạo ngân hàng, tổ chức tín dụng để dụ dỗ người dân nộp tiền phí trước khi được giải ngân...",
+          "source": "tuoitre.vn",
+          "date": "2024-03-15",
+          "modality": "text"
+        },
+        {
+          "rank": 3,
+          "score": 0.8567,
+          "chunk_id": "art_102_001",
+          "title": "Cảnh báo lừa đảo vay vốn trực tuyến gia tăng",
+          "text": "Bộ Công an cho biết trong quý I/2024, số vụ lừa đảo qua hình thức hỗ trợ vay vốn online tăng 35% so với cùng kỳ năm trước...",
+          "source": "vnexpress.net",
+          "date": "2024-04-01",
+          "modality": "text"
+        },
+        {
+          "rank": 4,
+          "score": 0.7823,
+          "chunk_id": "img_045_001",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình",
+          "text": "Tang vật thu giữ tại hiện trường gồm 15 điện thoại di động, 5 laptop và nhiều thẻ ngân hàng",
+          "source": "tuoitre.vn",
+          "date": "2024-03-15",
+          "modality": "image",
+          "image_path": "media/art_045_img_0.jpg"
+        },
+        {
+          "rank": 5,
+          "score": 0.7456,
+          "chunk_id": "art_087_002",
+          "title": "Công an Thái Bình xử lý nhiều vụ lừa đảo công nghệ cao",
+          "text": "Trong năm 2024, Phòng Cảnh sát Hình sự Công an tỉnh Thái Bình đã điều tra, khám phá 15 vụ lừa đảo có sử dụng công nghệ cao...",
+          "source": "laodong.vn",
+          "date": "2024-05-20",
+          "modality": "text"
+        }
+      ]
+    },
+    "reranking": {
+      "status": "success",
+      "duration_seconds": 0.45,
+      "model": "bkai-foundation-models/vietnamese-bi-encoder",
+      "reranked_results": [
+        {
+          "rank": 1,
+          "original_rank": 1,
+          "score": 0.9567,
+          "chunk_id": "art_045_002",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình"
+        },
+        {
+          "rank": 2,
+          "original_rank": 2,
+          "score": 0.9123,
+          "chunk_id": "art_045_003",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình"
+        },
+        {
+          "rank": 3,
+          "original_rank": 4,
+          "score": 0.8345,
+          "chunk_id": "img_045_001",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình"
+        },
+        {
+          "rank": 4,
+          "original_rank": 3,
+          "score": 0.7890,
+          "chunk_id": "art_102_001",
+          "title": "Cảnh báo lừa đảo vay vốn trực tuyến gia tăng"
+        },
+        {
+          "rank": 5,
+          "original_rank": 5,
+          "score": 0.6543,
+          "chunk_id": "art_087_002",
+          "title": "Công an Thái Bình xử lý nhiều vụ lừa đảo công nghệ cao"
+        }
+      ]
+    },
+    "verdict": {
+      "status": "success",
+      "duration_seconds": 2.15,
+      "model": "gemini-1.5-pro",
+      "label": "TRUE",
+      "confidence": 0.92,
+      "explanation": "Dựa trên các bằng chứng thu thập được từ nhiều nguồn báo chí uy tín (Tuổi Trẻ, VnExpress, Lao Động), thông tin trong claim được xác nhận là ĐÚNG. Cụ thể:\n\n1. Công an tỉnh Thái Bình đã thực sự triệt phá đường dây lừa đảo vay vốn online (xác nhận bởi tuoitre.vn, ngày 15/03/2024).\n2. Số lượng 10 đối tượng bị khởi tố khớp với thông tin từ bài báo gốc.\n3. Hình ảnh đính kèm cho thấy cảnh buổi họp báo công bố kết quả triệt phá, phù hợp với nội dung claim.\n4. Nhiều nguồn báo chí độc lập cùng đưa tin xác nhận sự kiện này.",
+      "evidence_sources": [
+        {
+          "source": "tuoitre.vn",
+          "title": "Triệt phá đường dây lừa đảo vay vốn online tại Thái Bình",
+          "relevance": "high"
+        },
+        {
+          "source": "vnexpress.net",
+          "title": "Cảnh báo lừa đảo vay vốn trực tuyến gia tăng",
+          "relevance": "medium"
+        }
+      ]
+    }
+  },
+  "benchmark": {
+    "dataset_info": {
+      "name": "ViFactCheck-Test",
+      "total_samples": 500,
+      "label_distribution": {
+        "TRUE": 180,
+        "FALSE": 160,
+        "HALF-TRUE": 90,
+        "UNVERIFIABLE": 70
+      }
+    },
+    "results": {
+      "overall": {
+        "accuracy": 0.7840,
+        "macro_f1": 0.7623,
+        "weighted_f1": 0.7801,
+        "precision": 0.7756,
+        "recall": 0.7840
+      },
+      "per_label": {
+        "TRUE": {
+          "precision": 0.8512,
+          "recall": 0.8667,
+          "f1": 0.8589,
+          "support": 180
+        },
+        "FALSE": {
+          "precision": 0.8234,
+          "recall": 0.8125,
+          "f1": 0.8179,
+          "support": 160
+        },
+        "HALF-TRUE": {
+          "precision": 0.6789,
+          "recall": 0.6556,
+          "f1": 0.6670,
+          "support": 90
+        },
+        "UNVERIFIABLE": {
+          "precision": 0.7143,
+          "recall": 0.7143,
+          "f1": 0.7143,
+          "support": 70
+        }
+      },
+      "confusion_matrix": [
+        [156, 8, 12, 4],
+        [5, 130, 15, 10],
+        [12, 10, 59, 9],
+        [6, 5, 9, 50]
+      ],
+      "confusion_labels": ["TRUE", "FALSE", "HALF-TRUE", "UNVERIFIABLE"]
+    },
+    "model_config": {
+      "preprocessing_model": "Qwen2.5-VL-7B-Instruct",
+      "retrieval_strategy": "fixed_size",
+      "retrieval_top_k": 5,
+      "reranker": "bkai-foundation-models/vietnamese-bi-encoder",
+      "verdict_model": "gemini-1.5-pro"
+    },
+    "duration_minutes": 45.3
+  },
+  "model_options": {
+    "preprocessing": [
+      {"id": "qwen2.5-vl-7b", "name": "Qwen2.5-VL-7B-Instruct", "type": "VLM"},
+      {"id": "qwen2-vl-7b", "name": "Qwen2-VL-7B-Instruct", "type": "VLM"},
+      {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "type": "API"},
+      {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "type": "API"}
+    ],
+    "chunking_strategy": [
+      {"id": "fixed_size", "name": "Fixed Size (512 tokens)"},
+      {"id": "paragraph", "name": "Paragraph-based"},
+      {"id": "semantic", "name": "Semantic Chunking"}
+    ],
+    "retrieval": [
+      {"id": "clip-multilingual", "name": "CLIP-ViT-B-32-Multilingual", "dim": 512},
+      {"id": "bkai-vietnamese", "name": "BKAI Vietnamese Bi-Encoder", "dim": 768}
+    ],
+    "reranker": [
+      {"id": "none", "name": "Không sử dụng Reranker"},
+      {"id": "bkai-reranker", "name": "BKAI Vietnamese Bi-Encoder"},
+      {"id": "cross-encoder", "name": "Cross-Encoder Multilingual"}
+    ],
+    "verdict": [
+      {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "type": "API"},
+      {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "type": "API"},
+      {"id": "gpt-4o", "name": "GPT-4o", "type": "API"},
+      {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "type": "API"}
+    ]
+  }
+}
