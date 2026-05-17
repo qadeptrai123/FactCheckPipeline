@@ -1,8 +1,3 @@
-# ══════════════════════════════════════════════════════════════════════════════
-# RAG-DB — requirements
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ── Core ──────────────────────────────────────────────────────────────────────
 pandas
 tqdm
 openai
@@ -11,6 +6,7 @@ pydantic
 # ── Chunking ──────────────────────────────────────────────────────────────────
 langchain-huggingface
 langchain-text-splitters
+langchain_experimental
 llama-index
 tiktoken
 
@@ -23,6 +19,8 @@ qdrant-client
 #   pip install -r requirements.txt
 transformers
 sentence-transformers  # clip-ViT-B-32-multilingual-v1 for image embeddings
+einops               # jinaai/jina-clip-v2 custom model dependency
+timm                 # jinaai/jina-clip-v2 vision encoder dependency
 
 # PyTorch CUDA 12.4 — install separately BEFORE other packages to avoid cpu-only fallback
 # See: https://pytorch.org/get-started/locally/

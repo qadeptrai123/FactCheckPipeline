@@ -1,146 +1,161 @@
 """
-Chunk corpus text using Fixed-Size (token-based) strategy and write CSV output.
-
-Uses LangChain's CharacterTextSplitter.from_tiktoken_encoder for consistent
-token-based chunking, following the approach from:
-https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
+Chunk corpus text using LangChain fixed-length token splitting and write CSV output.
 
 Usage:
-    python chunk_fixed_size.py              # full corpus
-    python chunk_fixed_size.py --sample 20  # first 20 rows for testing
-    python chunk_fixed_size.py --output my_chunks.csv
+    python chunk_fixed_size.py
 
 Output CSV columns:
     chunk_id, modality, row_id, chunk_index,
     text, image_path, text_chunk_id,
     source, url, title, author, date, corpus_id
 """
-import argparse
-import sys
-from pathlib import Path
-from typing import List
-
-# ── project root so we can import src/ without pip install ──────────────────────
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import csv
-from tqdm import tqdm
+import os
+import sys
+from pathlib import Path
+from typing import Dict, Iterator, List
 
-from src.domain.chunk import Chunk
-from src.domain.corpus_row import CorpusRow
-from src.chunking.fixed_size import FixedSizeChunkingStrategy
-
-CORPUS_PATH = Path("D:/RAG-DB/FinalDataset/final_corpus.csv")
-DEFAULT_OUTPUT = Path("D:/RAG-DB/chunking_scripts/chunks_fixed_size.csv")
+from langchain_text_splitters import TokenTextSplitter
+from tqdm.auto import tqdm
 
 
-def read_corpus(path: Path) -> List[CorpusRow]:
-    """Read final_corpus.csv and yield CorpusRow objects."""
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+
+def load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_env_file(ENV_PATH)
+
+FIXED_SIZE_CHUNK_SIZE = int(os.environ.get("FIXED_SIZE_CHUNK_SIZE", "256"))
+FIXED_SIZE_OVERLAP = int(os.environ.get("FIXED_SIZE_OVERLAP", "40"))
+FIXED_SIZE_ENCODING = os.environ.get("FIXED_SIZE_ENCODING", "cl100k_base")
+FIXED_SIZE_SAMPLE = int(os.environ["FIXED_SIZE_SAMPLE"]) if os.environ.get("FIXED_SIZE_SAMPLE") else None
+CORPUS_PATH = Path(os.environ.get("FIXED_SIZE_CORPUS_PATH", "D:/RAG-DB/FinalDataset/final_corpus.csv"))
+OUTPUT_PATH = Path(os.environ.get("FIXED_SIZE_OUTPUT", "D:/RAG-DB/chunking_scripts/chunks_fixed_size.csv"))
+
+
+def read_corpus(path: Path) -> Iterator[Dict[str, str]]:
     with open(path, encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            yield CorpusRow(
-                id=int(row.get("id", 0)),
-                source=row.get("source", ""),
-                url=row.get("url", ""),
-                title=row.get("title", ""),
-                author=row.get("author", ""),
-                date=row.get("date", ""),
-                content=row.get("content", ""),
-                media=row.get("media", ""),
-            )
+        yield from csv.DictReader(f)
 
 
-def chunk_to_csv(chunks: List[Chunk], output_path: Path):
-    """Write chunks to a flat CSV."""
+def count_rows(path: Path) -> int:
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        return max(sum(1 for _ in csv.reader(f)) - 1, 0)
+
+
+def build_splitter() -> TokenTextSplitter:
+    return TokenTextSplitter(
+        encoding_name=FIXED_SIZE_ENCODING,
+        chunk_size=FIXED_SIZE_CHUNK_SIZE,
+        chunk_overlap=FIXED_SIZE_OVERLAP,
+    )
+
+
+def chunk_text(splitter: TokenTextSplitter, text: str) -> List[str]:
+    text = (text or "").strip()
+    if not text:
+        return []
+
+    chunks = splitter.split_text(text)
+    return [chunk.strip() for chunk in chunks if chunk and chunk.strip()]
+
+
+def make_chunk_rows(row: Dict[str, str], splitter: TokenTextSplitter) -> List[Dict[str, str]]:
+    row_id = row.get("id", "0") or "0"
+    chunks = chunk_text(splitter, row.get("content", ""))
+
+    return [
+        {
+            "chunk_id": f"row_{row_id}_text_{chunk_index}",
+            "modality": "text",
+            "row_id": row_id,
+            "chunk_index": str(chunk_index),
+            "text": text,
+            "image_path": "",
+            "text_chunk_id": "",
+            "source": row.get("source", ""),
+            "url": row.get("url", ""),
+            "title": row.get("title", ""),
+            "author": row.get("author", ""),
+            "date": row.get("date", ""),
+            "corpus_id": row_id,
+        }
+        for chunk_index, text in enumerate(chunks)
+    ]
+
+
+def write_chunks(chunks: List[Dict[str, str]], output_path: Path) -> None:
     fieldnames = [
         "chunk_id", "modality", "row_id", "chunk_index",
         "text", "image_path", "text_chunk_id",
         "source", "url", "title", "author", "date",
         "corpus_id",
-    ]  # no "embedding" — chunking output only, embedding handled at upsert time
+    ]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for chunk in chunks:
-            payload = chunk.to_qdrant_payload()
-            writer.writerow({k: payload.get(k, "") for k in fieldnames})
+        writer.writerows(chunks)
 
 
-def run(strategy_name: str, chunk_size: int, overlap: int,
-        output_path: Path, sample: int = None):
-    strategy = FixedSizeChunkingStrategy(chunk_size=chunk_size, overlap=overlap)
-
-    all_chunks: List[Chunk] = []
+def run() -> None:
+    splitter = build_splitter()
+    all_chunks: List[Dict[str, str]] = []
     errors: List[str] = []
 
-    # Count rows for progress bar
-    total_rows = 0
-    with open(CORPUS_PATH, encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
-        total_rows = sum(1 for _ in reader) - 1
-
-    limit = sample if sample else total_rows
-    pbar = tqdm(total=limit, desc=f"[{strategy_name}] Chunking rows",
-                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]")
+    total_rows = count_rows(CORPUS_PATH)
+    limit = FIXED_SIZE_SAMPLE if FIXED_SIZE_SAMPLE else total_rows
+    pbar = tqdm(
+        total=limit,
+        desc="[fixed_size] Chunking rows",
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+        dynamic_ncols=True,
+        file=sys.stdout,
+        leave=True,
+    )
 
     for idx, row in enumerate(read_corpus(CORPUS_PATH)):
-        if sample and idx >= sample:
+        if FIXED_SIZE_SAMPLE and idx >= FIXED_SIZE_SAMPLE:
             break
 
+        row_id = row.get("id", "0") or "0"
         try:
-            metadata = {
-                "row_id": row.id,
-                "source": row.source,
-                "url": row.url,
-                "title": row.title,
-                "author": row.author,
-                "date": row.date,
-                "content": row.content,
-            }
-
-            text_chunks = strategy.chunk_no_embed(row.content, metadata)
-            all_chunks.extend(text_chunks)
-
+            all_chunks.extend(make_chunk_rows(row, splitter))
         except Exception as e:
-            errors.append(f"row_{row.id}: {e}")
+            errors.append(f"row_{row_id}: {e}")
 
         pbar.update(1)
 
     pbar.close()
+    write_chunks(all_chunks, OUTPUT_PATH)
 
-    chunk_to_csv(all_chunks, output_path)
-
-    text_count = sum(1 for c in all_chunks if c.modality == "text")
-    img_count = sum(1 for c in all_chunks if c.modality == "image")
-    print(f"\n[{strategy_name}] Done.")
-    print(f"  Total chunks : {len(all_chunks)}")
-    print(f"  Text chunks  : {text_count}")
-    print(f"  Image chunks: {img_count}")
-    print(f"  Errors       : {len(errors)}")
-    print(f"  Output file  : {output_path}")
+    print("\n[fixed_size] Done.", flush=True)
+    print(f"  Total chunks : {len(all_chunks)}", flush=True)
+    print(f"  Text chunks  : {len(all_chunks)}", flush=True)
+    print("  Image chunks : 0", flush=True)
+    print(f"  Errors       : {len(errors)}", flush=True)
+    print(f"  Output file  : {OUTPUT_PATH}", flush=True)
     if errors:
-        for e in errors[:10]:
-            print(f"    ! {e}")
+        for error in errors[:10]:
+            print(f"    ! {error}", flush=True)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Chunk corpus with Fixed-Size strategy")
-    parser.add_argument("--sample", type=int, default=None,
-                        help="Process only first N rows (for testing)")
-    parser.add_argument("--chunk-size", type=int, default=256,
-                        help="Max tokens per chunk (default: 256)")
-    parser.add_argument("--overlap", type=int, default=40,
-                        help="Token overlap between chunks (default: 40)")
-    parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT),
-                        help=f"Output CSV path (default: {DEFAULT_OUTPUT})")
-    args = parser.parse_args()
-
-    run(
-        strategy_name="fixed_size",
-        chunk_size=args.chunk_size,
-        overlap=args.overlap,
-        output_path=Path(args.output),
-        sample=args.sample,
-    )
+    run()

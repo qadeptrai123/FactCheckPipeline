@@ -31,6 +31,7 @@ class ClaimAtom(BaseModel):
     text: str
     check_type: Literal["entity", "event", "time", "location", "number", "quote", "relation", "other"]
     priority: Literal["high", "medium", "low"]
+    retrieval_queries: list[str]
 
 
 class VisualObservation(BaseModel):
@@ -68,11 +69,28 @@ class SearchQueries(BaseModel):
     visual: list[str]
 
 
+class RetrievalFocus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: bool
+    image: bool
+    cross_modal: bool
+
+
+class Constraints(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    time: list[str]
+    location: list[str]
+    source_type: list[str]
+
+
 class RefineOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     original_claim: str
     normalized_claim: str
+    primary_retrieval_query: str
     image_provided: bool
     language: Literal["vi"]
     claim_atoms: list[ClaimAtom]
@@ -80,6 +98,8 @@ class RefineOutput(BaseModel):
     alignment: Alignment
     key_entities: KeyEntities
     search_queries: SearchQueries
+    retrieval_focus: RetrievalFocus
+    constraints: Constraints
     context_summary: str
     ambiguity_notes: list[str]
     verification_targets: list[str]

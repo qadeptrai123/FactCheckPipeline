@@ -4,6 +4,7 @@ clean_claim_project/
 FinalDataset/
 models/
 agent_instruct.md
+.agents
 
 # macOS
 .DS_Store
