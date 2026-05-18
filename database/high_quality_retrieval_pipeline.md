@@ -77,6 +77,40 @@ Recommended starting point:
 - Keep `with_vectors=False`.
 - Keep `with_payload=True` because phase 3 needs evidence metadata.
 
+## Query Strategy
+
+The retrieval pipeline is intentionally multi-branch. Each branch answers a different retrieval need:
+
+- `text_dense`: semantic text retrieval.
+  - Best for paraphrases and general semantic matching.
+  - Uses BKAI Vietnamese text embeddings.
+
+- `text_sparse`: lexical/keyword retrieval.
+  - Best for exact entities, dates, numbers, source-specific terms, and named organizations.
+  - Uses the `sparse` vector.
+
+- `image_clip`: original CLIP text-to-image retrieval.
+  - Best for checking whether original CLIP can retrieve visually relevant images from visual queries.
+  - Uses `image_vector`.
+
+- `image_clip_finetuned`: fine-tuned CLIP text-to-image retrieval.
+  - Best for checking whether the fine-tuned CLIP improves image evidence retrieval.
+  - Uses `image_vector_finetuned`.
+
+For fair A/B evaluation between original CLIP and fine-tuned CLIP, do **not** search both image vectors in the same experiment. Run separate experiments:
+
+- Experiment A: use only `image_vector`
+- Experiment B: use only `image_vector_finetuned`
+
+The text branches stay the same across both experiments. This isolates whether the image vector changed retrieval quality.
+
+Do not use `limit=3` directly during candidate generation. Retrieve wider first:
+
+- top 10 per query per branch as a lightweight baseline
+- top 30-80 per branch for stronger final experiments
+
+Then fuse and rerank down to top 3 evidence.
+
 ## Fusion
 
 Use weighted Reciprocal Rank Fusion because dense text scores, sparse scores, and CLIP scores are not directly comparable.
@@ -89,6 +123,25 @@ Initial weights:
 - `image_clip_finetuned`: 1.25
 
 These are starting values only. Tune them against a golden set.
+
+For fair first-pass evaluation, use equal branch weights:
+
+```python
+BRANCH_WEIGHTS = {
+    "text_dense": 1.0,
+    "text_sparse": 1.0,
+    "image_clip": 1.0,
+    "image_clip_finetuned": 1.0,
+}
+```
+
+Weighted RRF should be introduced only after the equal-weight baseline is measured. The specific formula is:
+
+```python
+rrf_score += branch_weight / (RRF_K + rank_in_branch)
+```
+
+This is used because raw scores from dense vectors, sparse vectors, and CLIP vectors are not directly comparable.
 
 ## Reranking
 
@@ -154,6 +207,170 @@ Measure:
 
 For fact-checking, Recall@10/20 should be optimized first. Top-3 quality improves after reranking.
 
+### Evaluation Matrix
+
+Run metrics separately for each condition:
+
+| Dimension | Values |
+|---|---|
+| Refiner | `gemini-2.5-flash`, `gpt4o_mini` |
+| Collection | `fixed_size`, `semantic` |
+| Image vector | `image_vector`, `image_vector_finetuned` |
+| Reranker | `off`, `on` |
+
+Recommended sequence:
+
+1. Baseline without reranker:
+   - both refiners
+   - both collections
+   - both image vectors
+
+2. Reranker experiment:
+   - same settings
+   - enable `namdp-ptit/ViRanker`
+
+3. Compare:
+   - original CLIP vs fine-tuned CLIP
+   - fixed-size chunking vs semantic chunking
+   - Gemini refine vs GPT-4o mini refine
+   - no-reranker vs reranker
+
+### Ground Truth Matching
+
+Gold schema:
+
+```text
+id
+claim
+image
+text_evidences
+text_evidences_url
+image_evidences
+image_evidence_path
+reason
+label
+```
+
+Text evidence is counted as a hit when one of these is true:
+
+1. Retrieved payload URL exactly matches `text_evidences_url`.
+2. Retrieved text/title/source has high token coverage against a gold evidence fragment.
+3. Retrieved text/title/source has high token F1 against a gold evidence fragment.
+
+Coverage is necessary because retrieved chunks can be much longer than the gold evidence sentence. If a long retrieved chunk contains the full gold sentence, pure F1 may be unfairly low due to many extra tokens.
+
+Current suggested thresholds:
+
+```python
+text_hit = token_coverage >= 0.60 or token_f1 >= 0.45
+```
+
+Image evidence is counted as a hit when:
+
+```python
+normalize_path(retrieved_payload["image_path"]) == normalize_path(gold["image_evidence_path"])
+```
+
+### Metric Definitions
+
+For one claim, let `top_k` be the first `k` retrieved evidence items after fusion/reranking.
+
+#### Evidence Recall@k
+
+Whether top-k contains at least one correct evidence item, text or image.
+
+```python
+evidence_recall_at_k = int(any(item.text_hit or item.image_hit for item in top_k))
+```
+
+Dataset score:
+
+```python
+mean(evidence_recall_at_k over all claims)
+```
+
+Use this as the main phase-3 readiness metric.
+
+#### Text Recall@k
+
+Whether top-k contains a correct text evidence item.
+
+```python
+text_recall_at_k = int(any(item.text_hit for item in top_k))
+```
+
+This isolates text retrieval quality.
+
+#### Image Recall@k
+
+Whether top-k contains a correct image evidence item.
+
+```python
+image_recall_at_k = int(any(item.image_hit for item in top_k))
+```
+
+This isolates image retrieval quality and is the key metric for comparing `image_vector` vs `image_vector_finetuned`.
+
+#### Full Recall@k
+
+Whether top-k contains both a correct text evidence item and a correct image evidence item.
+
+```python
+full_recall_at_k = int(
+    any(item.text_hit for item in top_k)
+    and any(item.image_hit for item in top_k)
+)
+```
+
+This is stricter than Evidence Recall@k. It is useful when the final LLM judge needs both modalities.
+
+#### MRR@3
+
+Mean Reciprocal Rank over the first correct evidence item within top 3.
+
+For one claim:
+
+```python
+if first_hit_rank in {1, 2, 3}:
+    mrr_at_3 = 1 / first_hit_rank
+else:
+    mrr_at_3 = 0
+```
+
+Dataset score:
+
+```python
+mean(mrr_at_3 over all claims)
+```
+
+This measures whether correct evidence appears near the top, not just somewhere in the candidate list.
+
+#### Recall@10 and Recall@20
+
+Use Recall@10/20 to diagnose whether candidate generation is good enough:
+
+- High Recall@20 but low Recall@3 means retrieval finds the evidence but fusion/reranking is weak.
+- Low Recall@20 means query generation, embeddings, collection choice, or modality strategy is missing evidence.
+
+### CSV Outputs
+
+The evaluation notebook writes:
+
+```text
+database/retrieval_eval_outputs/
+  metrics_summary.csv
+  retrieval_results_long.csv
+  claim_metrics_long.csv
+  retrieval_details_<experiment_id>.csv
+  claim_metrics_<experiment_id>.csv
+```
+
+`metrics_summary.csv` is the main comparison table.
+
+`retrieval_results_long.csv` stores ranked evidence rows with hit flags and matching diagnostics.
+
+`claim_metrics_long.csv` stores per-claim metrics for every experiment.
+
 ## Qdrant Performance Notes
 
 For low-latency retrieval:
@@ -179,11 +396,27 @@ Implementation notebook:
 
 ## Reranker Recommendation
 
-### Recommended Vietnamese Reranker
+### Selected Vietnamese Reranker
 
-Use `AITeamVN/Vietnamese_Reranker` as the primary text reranker.
+Use `namdp-ptit/ViRanker` as the primary text reranker.
 
-Reasons:
+Selected setup for the notebooks:
+
+```python
+CROSS_ENCODER_MODEL = "namdp-ptit/ViRanker"
+CROSS_ENCODER_MAX_LENGTH = 512
+```
+
+Use it as a text evidence reranker only:
+
+- Rerank the top 30-80 text candidates after Qdrant candidate generation.
+- Do not use it for image evidence directly; image evidence needs CLIP/VLM relevance scoring or OCR-to-text reranking.
+
+### Previous Vietnamese Reranker Candidate
+
+`AITeamVN/Vietnamese_Reranker` was the initial candidate, but it is no longer the default because it caused runtime issues in the local setup.
+
+Its original reasons:
 
 - Vietnamese-specific.
 - Apache 2.0 license.
@@ -199,12 +432,6 @@ Reasons:
 - Current observed Hugging Face downloads: about 7.8k/month.
 - Developer names listed on the model card are Vietnamese.
 
-Recommended usage in this project:
-
-- Use it as a text evidence reranker only.
-- Rerank the top 30-80 text candidates after Qdrant candidate generation.
-- Do not use it for image evidence directly; image evidence needs CLIP/VLM relevance scoring or OCR-to-text reranking.
-
 ### Strong Global Baseline
 
 Also test `BAAI/bge-reranker-v2-m3`.
@@ -217,7 +444,7 @@ Reasons:
 - Hugging Face shows about 11M+ monthly downloads.
 - BAAI recommends it for multilingual reranking and efficiency.
 
-Use this as a baseline against `AITeamVN/Vietnamese_Reranker`. If the Vietnamese model wins on the project golden set, keep the Vietnamese model. If not, keep BGE reranker.
+Use this as a baseline against `namdp-ptit/ViRanker`. If ViRanker wins on the project golden set, keep ViRanker. If not, keep BGE reranker.
 
 ### Lightweight Vietnamese Alternative
 
@@ -236,18 +463,12 @@ Use this when GPU memory or latency is tight.
 
 ### Practical Choice
 
-Selected setup for the notebook:
-
-```python
-CROSS_ENCODER_MODEL = "AITeamVN/Vietnamese_Reranker"
-CROSS_ENCODER_MAX_LENGTH = 2304
-```
-
 Use this comparison order if you later benchmark alternatives:
 
-1. `AITeamVN/Vietnamese_Reranker`
+1. `namdp-ptit/ViRanker`
 2. `BAAI/bge-reranker-v2-m3`
 3. `itdainb/PhoRanker`
+4. `AITeamVN/Vietnamese_Reranker`
 
 Evaluate all three on the same golden set using Recall@3, MRR@10, and NDCG@10.
 
