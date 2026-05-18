@@ -5,7 +5,7 @@ FinalDataset/
 models/
 agent_instruct.md
 .agents
-
+database/retrieval_eval_outputs/retrieval_results_long.csv
 # macOS
 .DS_Store
 
