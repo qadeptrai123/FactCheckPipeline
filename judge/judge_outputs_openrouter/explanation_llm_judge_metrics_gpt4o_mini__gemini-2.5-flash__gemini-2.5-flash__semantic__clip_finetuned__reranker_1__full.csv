@@ -1,0 +1,17 @@
+﻿metric,value
+num_rows,1293.0
+pass_rate,0.8375870069605569
+borderline_rate,0.050270688321732405
+fail_rate,0.11214230471771075
+mean_factual_consistency,4.395204949729312
+median_factual_consistency,5.0
+mean_verdict_alignment,4.525135344160867
+median_verdict_alignment,5.0
+mean_completeness,3.9930394431554523
+median_completeness,4.0
+mean_vietnamese_clarity,4.829079659706109
+median_vietnamese_clarity,5.0
+mean_no_hallucination,4.765661252900232
+median_no_hallucination,5.0
+mean_overall_score,4.465127610208817
+median_overall_score,4.8
