@@ -1,6 +1,6 @@
 """
-FactCheck Pipeline — Streamlit Frontend
-────────────────────────────────────────
+FactCheck Pipeline Streamlit frontend.
+
 Run from the project root:
     streamlit run src/frontend/app.py
 """
@@ -8,84 +8,63 @@ Run from the project root:
 import sys
 from pathlib import Path
 
-# ── Ensure project root is on sys.path so `src.*` imports work ───────────────
-_project_root = Path(__file__).resolve().parent.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
 import streamlit as st
-from src.frontend.config import PAGE_CONFIG, CUSTOM_CSS
-from src.frontend.utils import render_header
-from src.frontend.api_client import get_model_options, check_backend_health
-from src.frontend import tab_inference, tab_benchmark, tab_dashboard
 
-# ── Page setup ───────────────────────────────────────────────────────────────
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.frontend.api_client import check_backend_health, get_runtime_status
+from src.frontend.config import CUSTOM_CSS, PAGE_CONFIG, PHASE_LABELS, get_enabled_phases, get_pipeline_max_phase
+from src.frontend.tab_inference import render
+from src.frontend.utils import render_header
+
+
 st.set_page_config(**PAGE_CONFIG)
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-
-# ── Header ───────────────────────────────────────────────────────────────────
 render_header()
 
-# ── Sidebar: Backend connection toggle ───────────────────────────────────────
 with st.sidebar:
-    st.markdown("### Kết nối hệ thống")
+    st.markdown("### Trạng thái hệ thống")
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
-
-    use_backend = st.toggle(
-        "Sử dụng Backend API",
-        value=False,
-        key="toggle_backend",
-        help="Bật để gửi request đến FastAPI backend tại http://127.0.0.1:8000",
-    )
-
-    if use_backend:
-        is_healthy = check_backend_health()
-        if is_healthy:
-            st.markdown(
-                '<div style="display:flex;align-items:center;gap:.4rem;margin:.3rem 0">'
-                '<span style="width:8px;height:8px;border-radius:50%;'
-                'background:#10b981;display:inline-block"></span>'
-                '<span style="color:#10b981;font-size:.85rem;font-weight:500">'
-                'Backend đang hoạt động</span></div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                '<div style="display:flex;align-items:center;gap:.4rem;margin:.3rem 0">'
-                '<span style="width:8px;height:8px;border-radius:50%;'
-                'background:#f43f5e;display:inline-block"></span>'
-                '<span style="color:#f43f5e;font-size:.85rem;font-weight:500">'
-                'Backend không phản hồi</span></div>',
-                unsafe_allow_html=True,
-            )
-            st.caption("Kiểm tra: `uvicorn app.main:app` trong `src/backend/`")
+    backend_ok = check_backend_health()
+    if backend_ok:
+        st.success("Máy chủ đang chạy")
     else:
-        st.markdown(
-            '<div style="display:flex;align-items:center;gap:.4rem;margin:.3rem 0">'
-            '<span style="width:8px;height:8px;border-radius:50%;'
-            'background:#f59e0b;display:inline-block"></span>'
-            '<span style="color:#f59e0b;font-size:.85rem;font-weight:500">'
-            'Chế độ Mock Data</span></div>',
-            unsafe_allow_html=True,
-        )
+        st.error("Máy chủ chưa kết nối")
+        st.caption("Chạy trong `src/backend`: `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`")
 
-    st.markdown("")
+    runtime = get_runtime_status() if backend_ok else None
+    if runtime:
+        openrouter = runtime.get("openrouter", {})
+        gpu = runtime.get("gpu", {})
+        retriever = runtime.get("retriever") or {}
+        st.markdown("### Dịch vụ")
+        st.markdown('<hr class="divider">', unsafe_allow_html=True)
+        st.caption(f"OpenRouter: {'đã cấu hình' if openrouter.get('configured') else 'chưa cấu hình'}")
+        st.caption(f"GPU: {'sẵn sàng' if gpu.get('cuda_available') else 'chưa sẵn sàng'}")
+        if gpu.get("device_name"):
+            st.caption(str(gpu["device_name"]))
+        st.caption(f"Bi-encoder: {'đã tải' if retriever.get('bkai_model_loaded') else 'chưa tải'}")
+        st.caption(f"CLIP fine-tuned: {'đã tải' if retriever.get('clip_finetuned_model_loaded') else 'chưa tải'}")
+        st.caption(f"Reranker: {'đã tải' if retriever.get('cross_encoder_loaded') else 'chưa tải'}")
 
-# ── Load model options (used by tabs) ────────────────────────────────────────
-model_opts = get_model_options()
+    st.markdown("### Cấu hình pipeline")
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    max_phase = get_pipeline_max_phase()
+    enabled = get_enabled_phases()
+    runtime_pipeline = (runtime or {}).get("pipeline", {}) if backend_ok else {}
+    backend_max_phase = runtime_pipeline.get("max_phase")
+    st.caption(f"Chạy tới phase: {PHASE_LABELS[max_phase]}")
+    st.caption("Các phase bật: " + " -> ".join(PHASE_LABELS[phase] for phase in enabled))
+    if backend_max_phase and backend_max_phase != max_phase:
+        st.warning(f"Backend đang chạy tới phase: {PHASE_LABELS.get(backend_max_phase, backend_max_phase)}")
+    st.caption("Hiệu chỉnh: google/gemini-2.5-flash")
+    if "retrieval" in enabled:
+        st.caption("Truy xuất: semantic + clip_finetuned + reranker")
+    if "judge" in enabled:
+        st.caption("Quyết định: google/gemini-2.5-flash")
 
-# ── Tabs ─────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs([
-    "Kiểm chứng",
-    "Đánh giá",
-    "Tổng quan",
-])
 
-with tab1:
-    tab_inference.render(model_opts, use_backend=use_backend)
-
-with tab2:
-    tab_benchmark.render(model_opts)
-
-with tab3:
-    tab_dashboard.render()
+render()

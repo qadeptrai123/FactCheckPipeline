@@ -1,0 +1,98 @@
+INFO:     Started server process [868]
+INFO:     Waiting for application startup.
+'[WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions' thrown while requesting HEAD https://huggingface.co/bkai-foundation-models/vietnamese-bi-encoder/resolve/main/adapter_config.json
+Retrying in 1s [Retry 1/5].
+ERROR:    Traceback (most recent call last):
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\starlette\routing.py", line 638, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\fastapi\routing.py", line 216, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\fastapi\routing.py", line 241, in __aenter__
+    await self._router._startup()
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\fastapi\routing.py", line 4886, in _startup
+    handler()
+  File "D:\FactCheckPipeline\src\backend\app\main.py", line 21, in preload_pipeline_models
+    pipeline_router.pipeline_service.preload_components()
+  File "D:\FactCheckPipeline\src\backend\app\services\pipeline_service.py", line 32, in preload_components
+    retriever.preload_models()
+  File "D:\FactCheckPipeline\src\backend\app\components\retriever.py", line 144, in preload_models
+    self._embed_text_bkai(["kiểm tra tải mô hình"])
+  File "D:\FactCheckPipeline\src\backend\app\components\retriever.py", line 254, in _embed_text_bkai
+    self.bkai_model = SentenceTransformer(BKVEC_MODEL, device=self.device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\util\decorators.py", line 41, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\sentence_transformer\model.py", line 184, in __init__
+    super().__init__(
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\base\model.py", line 204, in __init__
+    modules, self.module_kwargs = self._load_modules(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\base\model.py", line 993, in _load_modules
+    return self._load_config_modules(model_name_or_path, **load_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\base\model.py", line 1199, in _load_config_modules
+    module = module_class.load(
+             ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\base\modules\transformer.py", line 1793, in load
+    return cls(model_name_or_path=model_name_or_path, **init_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\util\decorators.py", line 87, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\base\modules\transformer.py", line 630, in __init__
+    config, is_peft_model = self._load_config(model_name_or_path, backend, config_kwargs)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\sentence_transformers\base\modules\transformer.py", line 1410, in _load_config
+    adapter_config_file = find_adapter_config_file(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\transformers\utils\peft_utils.py", line 84, in find_adapter_config_file
+    adapter_cached_filename = cached_file(
+                              ^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\transformers\utils\hub.py", line 278, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\transformers\utils\hub.py", line 512, in cached_files
+    raise e
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\transformers\utils\hub.py", line 422, in cached_files
+    hf_hub_download(
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\utils\_validators.py", line 88, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\file_download.py", line 997, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\file_download.py", line 1130, in _hf_hub_download_to_cache_dir
+    _get_metadata_or_catch_error(
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\file_download.py", line 1669, in _get_metadata_or_catch_error
+    metadata = get_hf_file_metadata(
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\utils\_validators.py", line 88, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\file_download.py", line 1591, in get_hf_file_metadata
+    response = _httpx_follow_relative_redirects_with_backoff(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\utils\_http.py", line 685, in _httpx_follow_relative_redirects_with_backoff
+    response = http_backoff(
+               ^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\utils\_http.py", line 559, in http_backoff
+    return next(
+           ^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\huggingface_hub\utils\_http.py", line 467, in _http_backoff_base
+    response = client.request(method=method, url=url, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\httpx\_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\envs\vector_db\Lib\site-packages\httpx\_client.py", line 901, in send
+    raise RuntimeError("Cannot send a request, as the client has been closed.")
+RuntimeError: Cannot send a request, as the client has been closed.
+
+ERROR:    Application startup failed. Exiting.
+ERROR conda.cli.main_run:execute(127): `conda run python -m uvicorn app.main:app --host 127.0.0.1 --port 8000` failed. (See above for error)

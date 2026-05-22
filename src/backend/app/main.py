@@ -16,6 +16,10 @@ app.add_middleware(
 # Include router
 app.include_router(pipeline_router.router)
 
+@app.on_event("startup")
+def preload_pipeline_models():
+    pipeline_router.pipeline_service.preload_components()
+
 @app.get("/")
 async def health_check():
     return {"status": "ok", "message": "AI Pipeline API is running"}

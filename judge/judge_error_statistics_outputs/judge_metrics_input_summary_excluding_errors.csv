@@ -1,0 +1,4 @@
+﻿model,raw_rows,dropped_error_rows,invalid_label_rows,eligible_rows,dropped_total_rows,eligible_rate
+deepseek-v4-flash,1293,0,0,1293,0,1.0
+gemini-2.5-flash,1293,7,0,1286,7,0.9946
+gemini-2.5-flash-lite,1293,47,0,1246,47,0.9637

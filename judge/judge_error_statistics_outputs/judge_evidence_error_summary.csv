@@ -1,0 +1,4 @@
+﻿model,rows,rows_with_null_evidence,total_null_evidence_calls,rows_with_map_parse_error,relation_missing_count,rows_with_null_evidence_rate
+deepseek-v4-flash,1293,0,0,0,0,0.0
+gemini-2.5-flash,1293,7,7,0,0,0.0054
+gemini-2.5-flash-lite,1293,43,44,0,0,0.0333

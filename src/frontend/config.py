@@ -1,6 +1,32 @@
 """Streamlit page config and CSS styling for FactCheck UI."""
 
+import os
+from pathlib import Path
+
 import streamlit as st
+from dotenv import load_dotenv
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+PHASE_ORDER = ["refined", "retrieval", "judge"]
+PHASE_LABELS = {
+    "refined": "Hiệu chỉnh đầu vào",
+    "retrieval": "Truy xuất dữ liệu",
+    "judge": "Đưa ra quyết định",
+}
+
+
+def get_pipeline_max_phase() -> str:
+    load_dotenv(PROJECT_ROOT / ".env", override=True)
+    value = os.getenv("PIPELINE_MAX_PHASE", "judge").strip().lower()
+    return value if value in PHASE_ORDER else "judge"
+
+
+def get_enabled_phases() -> list[str]:
+    max_phase = get_pipeline_max_phase()
+    return PHASE_ORDER[: PHASE_ORDER.index(max_phase) + 1]
 
 PAGE_CONFIG = {
     "page_title": "FactCheck Pipeline",
@@ -11,6 +37,7 @@ PAGE_CONFIG = {
 
 CUSTOM_CSS = """
 <style>
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 /* ── Global ─────────────────────────────────────────── */
@@ -86,6 +113,12 @@ html, body, [class*="css"] {
     transition: background .2s;
 }
 .fact-chip:hover { background: rgba(99,102,241,.18); }
+
+@media (max-width: 900px) {
+    .step-card [style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+}
 
 /* ── Verdict banner ─────────────────────────────────── */
 .verdict-true {
@@ -177,5 +210,9 @@ section[data-testid="stSidebar"] {
     margin: 1rem 0;
 }
 .caption { color: #64748b; font-size: .82rem; }
+
+#MainMenu, footer {
+    visibility: hidden;
+}
 </style>
 """

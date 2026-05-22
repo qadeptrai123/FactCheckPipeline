@@ -4,6 +4,7 @@ import streamlit as st
 import time
 import json
 from pathlib import Path
+from textwrap import dedent
 
 # mock_data.json lives at FactCheckPipeline/src/frontend/mock_data.json
 MOCK_DATA_PATH = Path(__file__).resolve().parent / "mock_data.json"
@@ -31,15 +32,17 @@ def render_header():
 def render_step_card(step_num: int, title: str, content_html: str, badge_class: str = "badge-blue"):
     """Render a pipeline step card."""
     st.markdown(
-        f"""
-        <div class="step-card">
-            <div class="step-title">
-                <span class="step-badge {badge_class}">{step_num}</span>
-                {title}
+        dedent(
+            f"""
+            <div class="step-card">
+                <div class="step-title">
+                    <span class="step-badge {badge_class}">{step_num}</span>
+                    {title}
+                </div>
+                {dedent(content_html).strip()}
             </div>
-            {content_html}
-        </div>
-        """,
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -82,10 +85,9 @@ def simulate_progress(message: str, seconds: float = 2.0, steps: int = 20):
 def get_verdict_class(label: str) -> str:
     """Map verdict label to CSS class."""
     mapping = {
-        "TRUE": "verdict-true",
-        "FALSE": "verdict-false",
-        "HALF-TRUE": "verdict-half",
-        "UNVERIFIABLE": "verdict-unverifiable",
+        "SUPPORTED": "verdict-true",
+        "REFUTED": "verdict-false",
+        "NEI": "verdict-unverifiable",
     }
     return mapping.get(label.upper(), "verdict-unverifiable")
 
@@ -93,19 +95,17 @@ def get_verdict_class(label: str) -> str:
 def get_verdict_color(label: str) -> str:
     """Map verdict label to a hex colour."""
     mapping = {
-        "TRUE": "#10b981",
-        "FALSE": "#f43f5e",
-        "HALF-TRUE": "#f59e0b",
-        "UNVERIFIABLE": "#94a3b8",
+        "SUPPORTED": "#10b981",
+        "REFUTED": "#f43f5e",
+        "NEI": "#94a3b8",
     }
     return mapping.get(label.upper(), "#94a3b8")
 
 
 def get_verdict_icon(label: str) -> str:
     mapping = {
-        "TRUE": "✅",
-        "FALSE": "❌",
-        "HALF-TRUE": "⚠️",
-        "UNVERIFIABLE": "❓",
+        "SUPPORTED": "fa-solid fa-circle-check",
+        "REFUTED": "fa-solid fa-circle-xmark",
+        "NEI": "fa-solid fa-circle-question",
     }
-    return mapping.get(label.upper(), "❓")
+    return mapping.get(label.upper(), "fa-solid fa-circle-question")

@@ -1,0 +1,4 @@
+﻿model,rows,unique_claims,final_error_rows,evidence_null_rows,map_parse_error_rows,missing_verdict_rows,any_error_rows,success_rows,final_error_rate,evidence_null_rate,map_parse_error_rate,missing_verdict_rate,any_error_rate,success_rate
+deepseek-v4-flash,1293,1293,0,0,0,0,0,1293,0.0,0.0,0.0,0.0,0.0,1.0
+gemini-2.5-flash,1293,1293,0,7,0,0,7,1286,0.0,0.0054,0.0,0.0,0.0054,0.9946
+gemini-2.5-flash-lite,1293,1293,4,43,0,0,47,1246,0.0031,0.0333,0.0,0.0,0.0363,0.9637

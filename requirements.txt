@@ -2,6 +2,11 @@ pandas
 tqdm
 openai
 pydantic
+python-dotenv
+fastapi
+uvicorn
+streamlit
+requests
 
 # ── Chunking ──────────────────────────────────────────────────────────────────
 langchain-huggingface

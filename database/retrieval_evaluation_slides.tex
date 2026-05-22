@@ -1,0 +1,375 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{multirow}
+
+\title[Đánh giá truy hồi bằng chứng]{Thực nghiệm đánh giá truy hồi bằng chứng}
+\subtitle{Fact-checking pipeline}
+\author{}
+\date{}
+
+\newcommand{\hitk}[1]{\mathrm{Hit@}#1}
+\newcommand{\mrr}{\mathrm{MRR@3}}
+\newcommand{\yes}{\checkmark}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Mục tiêu đánh giá}
+  \begin{itemize}
+    \item Đánh giá khả năng truy hồi top-3 bằng chứng cho mỗi claim trong \texttt{FinalDataset/claims\_merged.csv}.
+    \item So sánh các cấu hình truy hồi theo bốn yếu tố:
+    \begin{itemize}
+      \item mô hình refine claim: Gemini 2.5 Flash và GPT-4o mini;
+      \item collection Qdrant: \texttt{fixed\_size} và \texttt{semantic};
+      \item vector ảnh: CLIP gốc và CLIP fine-tuned;
+      \item reranker: tắt hoặc bật.
+    \end{itemize}
+    \item Kết quả được xuất ra tại \texttt{database/retrieval\_eval\_outputs/}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Dữ liệu và cấu hình thực nghiệm}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.48\textwidth}
+      \textbf{Dữ liệu}
+      \begin{itemize}
+        \item Ground truth: \texttt{claims\_merged.csv}
+        \item Số claim khớp để eval: \textbf{1293}
+        \item Gold evidence:
+        \begin{itemize}
+          \item URL/text evidence
+          \item đường dẫn image evidence
+        \end{itemize}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Mô hình}
+      \begin{itemize}\footnotesize
+        \item Text dense embedding:\\
+        \texttt{bkai-foundation-models/}\\
+        \texttt{vietnamese-bi-encoder}
+        \item Image/text CLIP:\\
+        \texttt{sentence-transformers/}\\
+        \texttt{clip-ViT-B-32}
+        \item CLIP fine-tuned:\\
+        \texttt{models/clip-vit-b32-}\\
+        \texttt{finetuned-final-final/best}
+        \item Cross-encoder reranker:\\
+        \texttt{namdp-ptit/ViRanker}
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Ma trận thí nghiệm}
+  \begin{table}
+    \centering
+    \small
+    \begin{tabular}{ll}
+      \toprule
+      Yếu tố & Giá trị thử nghiệm \\
+      \midrule
+      Refiner & \texttt{gemini-2.5-flash}, \texttt{gpt4o\_mini} \\
+      Collection & \texttt{fixed\_size}, \texttt{semantic} \\
+      Image vector & \texttt{clip}, \texttt{clip\_finetuned} \\
+      Reranker & \texttt{False}, \texttt{True} \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{0.3cm}
+  Tổng cộng:
+  \[
+    2 \times 2 \times 2 \times 2 = \textbf{16 cấu hình}
+  \]
+\end{frame}
+
+\begin{frame}{Pipeline truy hồi}
+  \begin{enumerate}
+    \item Từ output refine, tạo gói truy vấn gồm:
+    \begin{itemize}
+      \item \texttt{text\_queries}: claim đã chuẩn hoá, semantic queries, claim atoms, verification targets;
+      \item \texttt{keyword\_query}: keywords và verification targets;
+      \item \texttt{visual\_queries}: visual queries và visible evidence.
+    \end{itemize}
+    \item Truy hồi trong Qdrant theo ba nhánh:
+    \begin{itemize}
+      \item text dense với Vietnamese bi-encoder;
+      \item text sparse với sparse vector;
+      \item image lane với CLIP hoặc CLIP fine-tuned.
+    \end{itemize}
+    \item Hợp nhất ứng viên bằng weighted Reciprocal Rank Fusion.
+    \item Nếu bật reranker, dùng ViRanker để tăng điểm các ứng viên text.
+    \item Tách kết quả thành hai lane: text và image, rồi lấy top-k.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Cách xác định một hit}
+  \begin{block}{Text/source hit}
+    Một retrieved text được xem là đúng nguồn nếu URL sau chuẩn hoá khớp với \texttt{text\_evidences\_url}.
+  \end{block}
+
+  \begin{block}{Text evidence hit}
+    Nếu URL không khớp, hệ thống so khớp token giữa retrieved text và gold text evidence. Hit khi:
+    \[
+      \mathrm{coverage} \ge 0.60
+      \quad \text{hoặc} \quad
+      F_1 \ge 0.45
+    \]
+  \end{block}
+
+  \begin{block}{Image evidence hit}
+    Retrieved image được xem là đúng khi \texttt{image\_path} sau chuẩn hoá khớp với \texttt{image\_evidence\_path}.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Metric đánh giá}
+  Với mỗi claim, metric được tính trên top-k của text lane và image lane, sau đó lấy trung bình trên toàn bộ claim.
+
+  \vspace{0.2cm}
+  \begin{itemize}
+    \item \textbf{Source Hit@k}: có ít nhất một URL đúng trong top-k của text hoặc image lane.
+    \item \textbf{Evidence Hit@k}: có ít nhất một text evidence hit hoặc image exact hit trong top-k.
+    \item \textbf{MRR@3}: nghịch đảo rank của hit đầu tiên trong top-3.
+  \end{itemize}
+
+  \vspace{0.2cm}
+  \[
+    \hitk{k} = \frac{1}{N}\sum_{i=1}^{N}\mathbb{1}[\exists\ \mathrm{hit}\ \mathrm{trong}\ \mathrm{top}\ k]
+  \]
+  \[
+    \mrr = \frac{1}{N}\sum_{i=1}^{N}
+    \begin{cases}
+      1/r_i, & r_i \le 3 \\
+      0, & \text{không có hit trong top-3}
+    \end{cases}
+  \]
+\end{frame}
+
+\begin{frame}{Các file kết quả được xuất ra}
+  \begin{itemize}
+    \item \texttt{metrics\_summary.csv}: metric trung bình của từng cấu hình.
+    \item \texttt{best\_combinations\_by\_metric.csv}: cấu hình tốt nhất theo từng metric.
+    \item \texttt{claim\_metrics\_long.csv}: metric chi tiết theo từng claim.
+    \item \texttt{retrieval\_results\_long.csv}: từng bằng chứng được truy hồi, rank, score, branch và trạng thái hit.
+    \item \texttt{top3\_urls\_long.csv}: top-3 URL/text item/image item cho từng claim.
+    \item \texttt{by\_experiment/}: bản tách riêng cho từng cấu hình thí nghiệm.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Kết quả metrics được xuất ra}
+  \begin{table}
+    \centering
+    \fontsize{4.4}{4.5}\selectfont
+    \renewcommand{\arraystretch}{0.72}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{cccc rrr rrr r}
+      \toprule
+      Refiner & Collection & Image vector & Reranker &
+      \multicolumn{3}{c}{Text Source Hit} &
+      \multicolumn{3}{c}{Image Source Hit} &
+      MRR@3 \\
+      \cmidrule(lr){5-7}\cmidrule(lr){8-10}
+      & & & & @3 & @10 & @20 & @3 & @10 & @20 & \\
+      \midrule
+      \multirow[c]{8}{*}{\texttt{gemini-2.5-flash}} & \multirow[c]{4}{*}{\texttt{fixed\_size}} & \multirow[c]{2}{*}{\texttt{clip}} & \texttt{False} & 0.779 & 0.878 & 0.901 & 0.023 & 0.039 & 0.049 & 0.705 \\
+      & & & \texttt{True} & 0.821 & 0.889 & 0.909 & 0.023 & 0.039 & 0.049 & 0.762 \\
+      \cmidrule(lr){3-11}
+      & & \multirow[c]{2}{*}{\texttt{clip\_finetuned}} & \texttt{False} & 0.779 & 0.878 & 0.901 & 0.008 & 0.014 & 0.022 & 0.704 \\
+      & & & \texttt{True} & 0.821 & 0.889 & 0.909 & 0.008 & 0.014 & 0.022 & 0.761 \\
+      \cmidrule(lr){2-11}
+      & \multirow[c]{4}{*}{\texttt{semantic}} & \multirow[c]{2}{*}{\texttt{clip}} & \texttt{False} & 0.776 & 0.868 & 0.901 & 0.023 & 0.039 & 0.049 & 0.692 \\
+      & & & \texttt{True} & \textbf{0.832} & \textbf{0.894} & \textbf{0.917} & 0.023 & 0.039 & 0.049 & \textbf{0.773} \\
+      \cmidrule(lr){3-11}
+      & & \multirow[c]{2}{*}{\texttt{clip\_finetuned}} & \texttt{False} & 0.776 & 0.868 & 0.901 & 0.008 & 0.014 & 0.022 & 0.690 \\
+      & & & \texttt{True} & \textbf{0.832} & \textbf{0.894} & \textbf{0.917} & 0.008 & 0.014 & 0.022 & 0.772 \\
+      \midrule
+      \multirow[c]{8}{*}{\texttt{gpt4o\_mini}} & \multirow[c]{4}{*}{\texttt{fixed\_size}} & \multirow[c]{2}{*}{\texttt{clip}} & \texttt{False} & 0.778 & 0.871 & 0.894 & 0.018 & 0.028 & 0.039 & 0.702 \\
+      & & & \texttt{True} & 0.815 & 0.881 & 0.901 & 0.018 & 0.028 & 0.039 & 0.758 \\
+      \cmidrule(lr){3-11}
+      & & \multirow[c]{2}{*}{\texttt{clip\_finetuned}} & \texttt{False} & 0.778 & 0.871 & 0.894 & 0.005 & 0.009 & 0.021 & 0.700 \\
+      & & & \texttt{True} & 0.815 & 0.881 & 0.901 & 0.005 & 0.009 & 0.021 & 0.756 \\
+      \cmidrule(lr){2-11}
+      & \multirow[c]{4}{*}{\texttt{semantic}} & \multirow[c]{2}{*}{\texttt{clip}} & \texttt{False} & 0.768 & 0.865 & 0.896 & 0.018 & 0.028 & 0.039 & 0.675 \\
+      & & & \texttt{True} & 0.826 & 0.889 & 0.905 & 0.018 & 0.028 & 0.039 & 0.761 \\
+      \cmidrule(lr){3-11}
+      & & \multirow[c]{2}{*}{\texttt{clip\_finetuned}} & \texttt{False} & 0.768 & 0.865 & 0.896 & 0.005 & 0.009 & 0.021 & 0.674 \\
+      & & & \texttt{True} & 0.826 & 0.889 & 0.905 & 0.005 & 0.009 & 0.021 & 0.760 \\
+      \midrule
+      \texttt{raw\_claim} & \texttt{semantic} & \texttt{clip\_finetuned} & \texttt{True} & 0.825 & 0.882 & 0.899 & 0.001 & 0.002 & 0.002 & 0.763 \\
+      \bottomrule
+    \end{tabular}}
+  \end{table}
+
+  \vspace{-0.03cm}
+  \fontsize{5.5}{6.0}\selectfont
+  Bảng lấy từ \texttt{retrieval\_eval\_outputs/metrics\_summary.csv} và \texttt{retrieval\_eval\_raw\_outputs/metrics\_summary.csv}; mỗi cấu hình được đánh giá trên 1293 claim, số liệu được làm tròn 3 chữ số thập phân.
+  \texttt{MRR@3} là \texttt{source\_mrr\_at\_3}.
+\end{frame}
+
+\begin{frame}{Raw claim: evidence-level metrics}
+  \begin{table}
+    \centering
+    \scriptsize
+    \begin{tabular}{c rrr rrr r}
+      \toprule
+      Retrieval input &
+      \multicolumn{3}{c}{Text Evidence Hit} &
+      \multicolumn{3}{c}{Image Exact Hit} &
+      Evidence MRR@3 \\
+      \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+      & @3 & @10 & @20 & @3 & @10 & @20 & \\
+      \midrule
+      \texttt{Raw claim} & 0.924 & 0.951 & 0.958 & 0.000 & 0.000 & 0.000 & 0.886 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{0.15cm}
+  \footnotesize
+  Các số liệu được làm tròn 3 chữ số thập phân từ raw metrics summary; không thay đổi cấu trúc file CSV sinh ra từ notebook.
+\end{frame}
+
+\begin{frame}{Đánh giá verdict của judge}
+  \begin{table}
+    \centering
+    \small
+    \begin{tabular}{lrrrr}
+      \toprule
+      Label & Precision & Recall & F1 & Support \\
+      \midrule
+      \texttt{supported} & 0.946 & 0.803 & 0.869 & 432 \\
+      \texttt{refuted} & 0.658 & 0.905 & 0.762 & 431 \\
+      \texttt{nei} & 0.787 & 0.609 & 0.687 & 430 \\
+      \midrule
+      Accuracy & & & 0.773 & 1293 \\
+      Macro avg & 0.797 & 0.772 & 0.772 & 1293 \\
+      Weighted avg & 0.797 & 0.773 & 0.772 & 1293 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{0.1cm}
+  \footnotesize
+  Kết quả lấy từ file \texttt{factchecking\_metrics\_*full.csv} trong \texttt{judge\_outputs\_openrouter}.
+\end{frame}
+
+\begin{frame}{Confusion matrix của judge}
+  \begin{table}
+    \centering
+    \small
+    \begin{tabular}{lrrr}
+      \toprule
+      Gold $\backslash$ Pred & supported & refuted & nei \\
+      \midrule
+      supported & 347 & 47 & 38 \\
+      refuted & 8 & 390 & 33 \\
+      nei & 12 & \textbf{156} & 262 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{0.15cm}
+  \footnotesize
+  Lỗi lớn nhất là \texttt{nei} bị dự đoán thành \texttt{refuted}: 156 trường hợp. Điều này cho thấy judge có xu hướng diễn giải bằng chứng thiếu/không đủ kết luận thành bằng chứng phản bác trực tiếp.
+\end{frame}
+
+\begin{frame}{LLM-as-a-judge cho explanation}
+  \begin{itemize}
+    \item Evaluator: GPT-4o mini.
+    \item Input: claim, gold label, model verdict, gold reason, generated explanation.
+    \item Mỗi explanation được chấm 5 tiêu chí trên thang 1--5:
+    \begin{itemize}
+      \item factual consistency;
+      \item verdict alignment;
+      \item completeness;
+      \item Vietnamese clarity;
+      \item no hallucination.
+    \end{itemize}
+    \item Nhãn tổng hợp:
+    \begin{itemize}
+      \item \texttt{pass}: overall score $\ge 4.0$ và không tiêu chí nào dưới 3;
+      \item \texttt{borderline}: overall score $\ge 3.0$ nhưng chưa đạt pass;
+      \item \texttt{fail}: overall score $< 3.0$ hoặc có mâu thuẫn nghiêm trọng.
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Kết quả LLM-as-a-judge cho explanation}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.47\textwidth}
+      \begin{table}
+        \centering
+        \small
+        \begin{tabular}{lrr}
+          \toprule
+          Label & Count & Rate \\
+          \midrule
+          pass & 1083 & 0.838 \\
+          borderline & 65 & 0.050 \\
+          fail & 145 & 0.112 \\
+          \bottomrule
+        \end{tabular}
+      \end{table}
+    \end{column}
+    \begin{column}{0.50\textwidth}
+      \begin{table}
+        \centering
+        \small
+        \begin{tabular}{lr}
+          \toprule
+          Metric & Mean \\
+          \midrule
+          factual consistency & 4.395 \\
+          verdict alignment & 4.525 \\
+          completeness & 3.993 \\
+          Vietnamese clarity & 4.829 \\
+          no hallucination & 4.766 \\
+          overall score & 4.465 \\
+          \bottomrule
+        \end{tabular}
+      \end{table}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.1cm}
+  \footnotesize
+  Kết quả lấy từ \texttt{explanation\_llm\_judge\_metrics\_gpt4o\_mini\_\_gemini-2.5-flash\_\_...\_\_full.csv}; số dòng đánh giá: 1293.
+\end{frame}
+
+\begin{frame}{Nhận xét chính}
+  \begin{itemize}
+    \item Cấu hình tốt nhất theo \texttt{source\_hit\_at\_3}: Gemini 2.5 Flash + semantic collection + CLIP + reranker, đạt \textbf{0.833}.
+    \item Cấu hình tốt nhất theo \texttt{evidence\_hit\_at\_3}: GPT-4o mini + semantic collection + CLIP/CLIP-FT + reranker, đạt \textbf{0.922}.
+    \item Reranker cải thiện rõ rệt nhóm cấu hình đứng đầu: các kết quả top đều là \texttt{reranker=True}.
+    \item Collection \texttt{semantic} tốt hơn \texttt{fixed\_size} trên cả source hit và evidence hit.
+    \item Image exact hit còn thấp; phần lớn chất lượng top-3 đến từ text retrieval.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Kết luận thực nghiệm}
+  \begin{itemize}
+    \item Pipeline truy hồi đa nhánh kết hợp dense, sparse và visual retrieval đạt hiệu quả cao cho truy hồi bằng chứng văn bản.
+    \item Cấu hình nên ưu tiên cho hệ thống hiện tại:
+    \[
+      \texttt{semantic collection + CLIP + reranker}
+    \]
+    \item Nếu mục tiêu tối ưu source URL chính xác, Gemini 2.5 Flash là refiner tốt nhất trong thí nghiệm.
+    \item Nếu mục tiêu tối ưu evidence-level hit, GPT-4o mini cho kết quả nhỉnh hơn ở \texttt{evidence\_hit\_at\_3}.
+  \end{itemize}
+\end{frame}
+
+\end{document}
